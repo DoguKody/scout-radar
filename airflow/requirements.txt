@@ -1,5 +1,5 @@
 # Core Airflow (Composer 2.x usually supports Airflow 2.7+)
-apache-airflow==2.7.3
+apache-airflow==2.10.5
 
 # Google providers (BigQuery, GCS, etc.)
 apache-airflow-providers-google==10.14.0

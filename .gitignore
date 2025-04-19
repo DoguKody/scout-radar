@@ -7,3 +7,4 @@ airflow/airflow.db
 *.ipynb_checkpoints
 .gcp_keys/
 *.json
+.venv

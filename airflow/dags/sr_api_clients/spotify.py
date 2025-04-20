@@ -1,8 +1,9 @@
 """
-Spotify helper for ScoutRadar.
+Spotify client for ScoutRadar.
 Will fetch artists from a few breakout playlists.
 
 @dogu - 2025-04-19
+EDIT: Purged due to API access limitations.
 """
 
 import os, time, requests
@@ -19,8 +20,9 @@ AUTH_URL  = "https://accounts.spotify.com/api/token"
 BASE_URL  = "https://api.spotify.com/v1"
 
 PLAYLISTS = [
-    "37i9dQZF1DWWjGdmeTyeJ6",  # Fresh Finds
-    "37i9dQZF1DWVxStm5ni6tl",  # Fresh Finds - Canada
+    "37i9dQZF1DXaYrZ0yhCs6T",  # Fresh Finds
+    "37i9dQZF1DWY6vTWIdZ54A",  # Canada Rising
+    "37i9dQZF1DX4Wsb4d7NKfP",  # Fresh Finds Hip-Hop
 ]
 
 # ---------- auth ----------

@@ -15,3 +15,4 @@ prophet==1.1.5
 # additional
 requests>=2.31
 beautifulsoup4>=4.12
+playwright

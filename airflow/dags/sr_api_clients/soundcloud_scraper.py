@@ -1,52 +1,57 @@
 """
-Scrapes SoundCloud Top Charts (non-auth).
+Scrapes SoundCloud Top Charts using Playwright.
 Extracts top artist usernames and track URLs from the public web interface.
 
 @dogu - 2025-04-20
+EDIT: Churned, 'i just can't win but ill figure it out.'
 """
 
 import time
-import requests
-from bs4 import BeautifulSoup
 from typing import List, Dict
+from playwright.sync_api import sync_playwright
 
-BASE_URL = "https://soundcloud.com/charts/top"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0"
-}
-
-def scrape_top_chart(genre: str = "all-music", region: str = "all-countries", limit: int = 20) -> List[Dict[str, str]]:
-    """
-    Scrapes top chart for given genre/region (HTML version).
-    Returns a list of dicts with artist username and track URL.
-    """
-    url = f"{BASE_URL}?genre={genre}&region={region}"
-    r = requests.get(url, headers=HEADERS, timeout=10)
-    r.raise_for_status()
-
-    # trying to debug
-    with open("soundcloud_debug.html", "w") as f:
-        f.write(r.text)
-
-    soup = BeautifulSoup(r.text, "html.parser")
-    artist_cards = soup.select("li.chartTracks__item")
-
+def scrape_top_chart_playwright(genre: str = "all-music", region: str = "all-countries", limit: int = 20) -> List[Dict[str, str]]:
+    url = f"https://soundcloud.com/charts/top?genre={genre}&region={region}"
     results = []
-    for card in artist_cards[:limit]:
-        user_tag = card.select_one("a.chartTrack__username")
-        track_tag = card.select_one("a.chartTrack__title")
 
-        if user_tag and track_tag:
-            results.append({
-                "artist": user_tag.text.strip().lstrip("@"),
-                "track_url": "https://soundcloud.com" + track_tag["href"],
-                "snapshot_ts": int(time.time()),
-            })
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+        page.goto(url, timeout=60000)
+
+        # waiting for initial content to load
+        page.wait_for_selector("div.chartTracks", timeout=15000)
+
+        # scrolling to bottom to trigger lazy loading
+        page.mouse.wheel(0, 2000)
+        time.sleep(2)
+
+        # debugging effort 'lol'
+        page.screenshot(path="soundcloud_chart_debug.png", full_page=True)
+
+        cards = page.query_selector_all("li.chartTracks__item")
+
+        for card in cards[:limit]:
+            user_tag = card.query_selector("a.chartTrack__username")
+            track_tag = card.query_selector("a.chartTrack__title")
+
+            if user_tag and track_tag:
+                artist = user_tag.inner_text().strip().lstrip("@")
+                href = track_tag.get_attribute("href")
+                results.append({
+                    "artist": artist,
+                    "track_url": f"https://soundcloud.com{href}",
+                    "snapshot_ts": int(time.time()),
+                })
+
+        browser.close()
     return results
+
 
 # -------main-------
 if __name__ == "__main__":
-    results = scrape_top_chart()
-    print(f"Found {len(results)} artists.")
-    for artist in results[:3]:  # Show first 3
+    data = scrape_top_chart_playwright()
+    print(f"Found {len(data)} artists.")
+    for artist in data[:3]:
         print(artist)

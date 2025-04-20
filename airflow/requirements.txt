@@ -11,3 +11,7 @@ python-dotenv==1.0.1
 
 # Forecasting
 prophet==1.1.5
+
+# additional
+requests>=2.31
+beautifulsoup4>=4.12

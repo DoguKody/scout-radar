@@ -1,16 +1,17 @@
 # Core
 pandas
 numpy
-requests
 python-dotenv
+requests>=2.31
+beautifulsoup4>=4.12
 
 # Forecasting
 prophet
 matplotlib  # Optional for charts in notebooks
 
 # Google Cloud
-google-cloud-storage
-google-cloud-bigquery
+google-cloud-storage>=2.14
+google-cloud-bigquery>=3.18
 google-auth
 
 # Optional for notebook exploration

@@ -1,10 +1,16 @@
+"""
+Scrapes Bandcamp Discovery page using Playwright.
+Extracts artists from the public web interface.
+
+@dogu - 2025-04-21
+"""
 
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 
 with sync_playwright() as p:
     # context manager
-    browser = p.chromium.launch(headless=False, slow_mo=50)
+    browser = p.chromium.launch(headless=False, slow_mo=50) # convert to headless=True in prod.
     page = browser.new_page()
     page.goto("https://bandcamp.com/discover/hip-hop-rap")
 

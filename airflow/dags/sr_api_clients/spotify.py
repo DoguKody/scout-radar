@@ -3,7 +3,7 @@ Spotify client for ScoutRadar.
 Will fetch artists from a few breakout playlists.
 
 @dogu - 2025-04-19
-EDIT: Purged due to API access limitations.
+EDIT: Churned due to API access limitations.
 """
 
 import os, time, requests

@@ -64,54 +64,38 @@ def parse_soundcloud_srp(html, artist_name):
 
 def navigate_to_soundcloud_profile(query: str, artist_name: str) -> str:
     """
-    Launches a browser, searches SoundCloud for the artist name,
-    clicks the best matching result, and returns the resulting profile URL.
+    Loads SoundCloud search results for a given query, finds the best matching artist name,
+    and returns their profile URL if found.
 
     Parameters:
-        query (str): Search query.
-        artist_name (str): Expected artist display name.
+        query (str): Search query to input.
+        artist_name (str): Target artist name to match.
 
     Returns:
-        str: URL of the artist's profile page if found, else None.
+        str: Full profile URL of the matching artist, or None if not found.
     """
-    from playwright.sync_api import sync_playwright
+    html = load_soundcloud_search_results(query)
+    results = parse_soundcloud_srp(html, artist_name)
+    print(results)
 
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, slow_mo=100)
-        page = browser.new_page()
+    # normalization
+    clean_artist = artist_name.strip().lower()
 
-        search_url = f"https://soundcloud.com/search/people?q={query}"
-        page.goto(search_url, timeout=60000)
+    for result in results:
+        display = result["display_name"].strip().lower()
+        print(display)
+        if display == clean_artist:
+            print(f"✅ Exact match found: {result['display_name']} → {result['profile_url']}")
+            return result["profile_url"]
 
-        try:
-            page.wait_for_selector('button#onetrust-accept-btn-handler', timeout=5000)
-            page.click('button#onetrust-accept-btn-handler')
-        except:
-            pass
+    print("❌ No exact match found.")
+    return None
 
-        page.wait_for_selector('a.sc-link-dark.sc-link-primary', timeout=10000)
-        links = page.query_selector_all('a.sc-link-dark.sc-link-primary')
-
-        for link in links:
-            name = link.inner_text().strip()
-            href = link.get_attribute('href')
-            if name.lower() == artist_name.lower():
-                profile_url = f"https://soundcloud.com{href}" if not href.startswith("https://") else href
-                print(f"🎯 Navigating to artist profile: {profile_url}")
-                page.goto(profile_url)
-                page.wait_for_timeout(3000)
-                final_url = page.url
-                browser.close()
-                return final_url
-
-        print("❌ No exact match found.")
-        browser.close()
-        return None
     
 # ------ TESTING ------ 
 if __name__ == "__main__":
-    test_query = "Kilcasca"
-    expected_display_name = "insyt."
+    test_query = "Chai Sully"
+    expected_display_name = "Chai Sully" 
 
     profile_url = navigate_to_soundcloud_profile(test_query, expected_display_name)
 

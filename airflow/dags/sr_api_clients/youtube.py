@@ -79,7 +79,7 @@ def search_artist_channel(youtube, artist_name, max_results=10):
             else:
                 results[cid]["source_count"]["video_search"] += 1
 
-        print("📊 Combined channel matches:")
+        #print("📊 Combined channel matches:")
         for i, (cid, meta) in enumerate(results.items(), 1):
             cs = meta['source_count']['channel_search']
             vs = meta['source_count']['video_search']
@@ -250,7 +250,7 @@ def get_channel_details(youtube, channel_id):
             "description": info["snippet"].get("description", ""),
             "customUrl": info["snippet"].get("customUrl", ""),
             "publishedAt": info["snippet"]["publishedAt"],
-            "viewCount": info["statistics"].get("viewCount", "0"),
+            #"viewCount": info["statistics"].get("viewCount", "0"),
             "subscriberCount": info["statistics"].get("subscriberCount", "0"),
             "hiddenSubscriberCount": info["statistics"].get("hiddenSubscriberCount", False),
             "contentCount": info["statistics"].get("videoCount", "0")
@@ -272,13 +272,13 @@ def get_channel_details(youtube, channel_id):
 
 # -----------TESTING-----------
 if __name__ == "__main__":
-    artist_name = "Kilcasca"  
+    artist_name = "Rosabell"  
     youtube_key = get_youtube_service()
     results_dict = search_artist_channel(youtube_key, artist_name)
     best_channel = select_best_channel(results_dict, artist_name)
     channel_data = get_channel_details(youtube_key, best_channel)
 
-    #print(channel_data)
+    print(channel_data)
 
     '''
     if best_channel:
@@ -289,8 +289,7 @@ if __name__ == "__main__":
     else:
         print("No suitable channel found.")
     '''
-
-
+    
 #---------NOTES---------
 # Here are some edge cases I am likely to deal with:
 

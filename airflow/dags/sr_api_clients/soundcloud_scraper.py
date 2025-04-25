@@ -208,10 +208,8 @@ def navigate_to_soundcloud_profile(query: str, artist_name: str) -> dict:
     
 # ------ TESTING ------ 
 if __name__ == "__main__":
-    import json
-
-    test_query        = "anderson .paak"   # soundcloud search q= 
-    expected_name     = "anderson .paak"   # must exactly match the display_name on SC
+    test_query        = "d.o.g.u"   # soundcloud search q= 
+    expected_name     = "d.o.g.u"   # must exactly match the display_name on SC
 
     result = navigate_to_soundcloud_profile(test_query, expected_name)
     if result:

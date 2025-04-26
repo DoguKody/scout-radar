@@ -95,6 +95,8 @@ def get_artist_insights(artist_id: str, access_token: str = None) -> list:
     albums_stats = []
     for alb in albums:
         cm_album_id = alb.get('cm_album') or alb.get('id')
+        album_name      = alb.get('name')
+        album_image_url = alb.get('image_url')
 
         # fetch the album's tracks
         tr_resp = requests.get(f"{base_url}/album/{cm_album_id}/tracks", headers=headers)
@@ -116,6 +118,10 @@ def get_artist_insights(artist_id: str, access_token: str = None) -> list:
         # aggregate per-track cm_statistics into album totals
         totals = {}
         for t in tracks:
+            tid    = t.get('id')
+            tname  = t.get('name')
+            timg   = t.get('image_url')
+   
             stats = t.get('cm_statistics') or t.get('statistics') or {}
             for field, value in stats.items():
                 if isinstance(value, (int, float)):
@@ -123,8 +129,10 @@ def get_artist_insights(artist_id: str, access_token: str = None) -> list:
 
         # result
         albums_stats.append({
-            'album_id':      cm_album_id,
-            'cm_statistics': totals
+            'album_id':        cm_album_id,
+            'album_name':      album_name,
+            'album_image_url': album_image_url,
+            'cm_statistics':   totals
         })
 
     return albums_stats
@@ -132,7 +140,7 @@ def get_artist_insights(artist_id: str, access_token: str = None) -> list:
 # ---- TESTING ----
 if __name__ == '__main__':
     # 1️⃣ Search and grab the first artist ID
-    results = search_artist('DVYN', limit=5, type='artists')
+    results = search_artist('Sofinari', limit=5, type='artists')
     if not results:
         print("No artists found for 'Erin B'")
         exit(1)
@@ -148,6 +156,7 @@ if __name__ == '__main__':
     from pprint import pprint
     for alb in albums_stats:
         print(f"Album ID: {alb['album_id']}")
+        print(f"Album ID: {alb['album_id']}  Name: {alb.get('album_name')}")
         print("cm_statistics:")
         pprint(alb['cm_statistics'], indent=2, width=100)
         print("\n" + "-"*80 + "\n")

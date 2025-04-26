@@ -9,7 +9,7 @@ auth_url = 'https://api.chartmetric.com/api/token'
 search_url = 'https://api.chartmetric.com/api/search'
 base_url = 'https://api.chartmetric.com/api'
 filter_url = f"{base_url}/artist/list/filter"
-# Artist-specific Spotify daily chart endpoint template
+# artist-specific Spotify daily chart endpoint template
 artist_charts_url_template = f"{base_url}/artist/{{artist_id}}/spotify_top_daily/charts"
 
 
@@ -34,6 +34,7 @@ def init_credentials(refresh_token: str = None) -> str:
         return raw['token']
     raise ValueError(f"Access token not found in auth response. Response content: {raw}")
 
+from datetime import date, timedelta
 
 def search_artist(
     query: str,
@@ -59,99 +60,91 @@ def search_artist(
     return nested.get('items', []) or []
 
 
-def get_artist_insights(
-    artist_id: int,
-    start_date: str,
-    end_date: str
-) -> dict:
-    """
-    Pull Instagram stats, album cm_statistics, and artist-specific Spotify daily chart data.
-
-    Args:
-        artist_id: Chartmetric artist ID.
-        start_date: YYYY-MM-DD (since parameter for daily charts).
-        end_date: YYYY-MM-DD (until parameter for daily charts).
-
-    Returns:
-        dict with keys 'instagram', 'albums', 'spotify_charts'.
-    """
+def get_artist_insights(artist_id: str, date: str, country_code: str = 'US',
+                        interval: str = 'daily', chart_type: str = 'regional') -> dict:
     token = init_credentials()
     headers = {'Authorization': f'Bearer {token}'}
 
-    # 1. Instagram audience stats
-    ig_resp = requests.get(
-        f"{base_url}/artist/{artist_id}/instagram-audience-stats",
-        headers=headers
-    )
-    ig_resp.raise_for_status()
-    instagram = ig_resp.json()
+    # ------ hitting the ALBUMS endpoint ------
+    url = f"{base_url}/artist/{artist_id}/albums"
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
 
-    # 2. Album-level cm_statistics
-    alb_resp = requests.get(
-        f"{base_url}/artist/{artist_id}/albums",
-        headers=headers
-    )
-    alb_resp.raise_for_status()
-    raw_alb = alb_resp.json()
-    if isinstance(raw_alb.get('obj'), list):
-        albums = raw_alb['obj']
-    elif isinstance(raw_alb.get('obj'), dict) and 'items' in raw_alb['obj']:
-        albums = raw_alb['obj']['items']
-    elif 'items' in raw_alb:
-        albums = raw_alb['items']
+    # the album list from whichever wrapper Chartmetric used
+    if isinstance(data.get('obj'), list):
+        albums = data['obj']
+    elif isinstance(data.get('obj'), dict) and 'items' in data['obj']:
+        albums = data['obj']['items']
+    elif 'items' in data:
+        albums = data['items']
     else:
-        albums = raw_alb.get('data', {}).get('items', []) or []
+        albums = []
 
+    # ------ getting the `cm_statistics` ------
     albums_stats = []
     for alb in albums:
-        album_id = alb.get('cm_album') or alb.get('id')
-        tr_resp = requests.get(
-            f"{base_url}/album/{album_id}/tracks",
-            headers=headers
-        )
+        # Chartmetric album ID
+        cm_album_id = alb.get('cm_album') or alb.get('id')
+
+        # fetching the tracks for that album
+        tr_url = f"{base_url}/album/{cm_album_id}/tracks"
+        tr_resp = requests.get(tr_url, headers=headers)
         tr_resp.raise_for_status()
-        tr_data = tr_resp.json()
+        raw_tr = tr_resp.json()
+
+        # unwrapping the tracks array (it may live under `obj.tracks`, `tracks`, or even be the top‐level list)
+        if isinstance(raw_tr, list):
+            tracks_list = raw_tr
+        else:
+            obj = raw_tr.get('obj')
+
+            if isinstance(obj, list):
+                # obj _is_ already the list of tracks
+                tracks_list = obj
+            elif isinstance(obj, dict):
+                # obj is a dict: look for its "tracks" key first
+                tracks_list = obj.get('tracks') or raw_tr.get('tracks') or []
+            else:
+                # nothing under obj, fall back to top-level "tracks"
+                tracks_list = raw_tr.get('tracks') or []
+
+        # extracing each track’s cm_statistics (or `statistics`) field
+        cm_stats = [
+            t.get('cm_statistics') or t.get('statistics') or {}
+            for t in tracks_list
+        ]
+
+        # output list
         albums_stats.append({
-            'album_id': album_id,
-            'cm_statistics': tr_data.get('cm_statistics', {})
+            'album_id':      cm_album_id,
+            'cm_statistics': cm_stats
         })
 
-    # 3. Artist-specific Spotify daily chart data
-    charts_url = artist_charts_url_template.format(artist_id=artist_id)
-    charts_params = {'since': start_date, 'until': end_date}
-    ch_resp = requests.get(
-        charts_url,
-        headers=headers,
-        params=charts_params
-    )
-    ch_resp.raise_for_status()
-    spotify_charts = ch_resp.json()
+    return albums_stats
 
-    return {
-        'instagram': instagram,
-        'albums': albums_stats,
-        'spotify_charts': spotify_charts
-    }
-
-
+# ---- TESTING ----
 if __name__ == '__main__':
-    try:
-        # Test search
-        print('Testing search_artist()...')
-        artists = search_artist('anderson .paak', limit=10, type='artists')
-        if not artists:
-            print('No artists found.')
-        else:
-            for art in artists:
-                print(f"{art.get('id')} - {art.get('name')} (score: {art.get('cm_artist_score') or art.get('score')})")
+    # 1️⃣ Search and grab the first artist ID
+    results = search_artist('anderson .paak', limit=5, type='artists')
+    if not results:
+        print("No artists found for 'Erin B'")
+        exit(1)
+    artist = results[0]
+    artist_id = artist.get('id')
+    print(f"Using artist_id={artist_id} for {artist.get('name')}")
 
-            # Test get_artist_insights
-            artist_id = artists[0].get('id')
-            print(f"\nTesting get_artist_insights() for artist ID {artist_id}...\n")
-            insights = get_artist_insights(artist_id, '2025-01-01', '2025-04-25')
-            print('Instagram stats:', insights['instagram'])
-            print('Albums stats count:', insights['albums'])
-            print('Spotify daily chart data:', insights['spotify_charts'])
-    except Exception as e:
-        print('Error during test:', e)
+    # 2️⃣ Call get_artist_insights with today’s date
+    from datetime import date as _d
+    today = _d.today().isoformat()  # e.g. '2025-04-26'
 
+    albums_stats = get_artist_insights(artist_id, today)
+    print(f"Fetched cm_statistics for {len(albums_stats)} albums:\n")
+
+    # 3️⃣ Print the full cm_statistics data for each album
+    from pprint import pprint
+    for alb in albums_stats:
+        print(f"Album ID: {alb['album_id']}")
+        print("cm_statistics:")
+        pprint(alb['cm_statistics'], indent=2, width=100)
+        print("\n" + "-"*80 + "\n")

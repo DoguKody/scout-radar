@@ -137,26 +137,96 @@ def get_artist_insights(artist_id: str, access_token: str = None) -> list:
 
     return albums_stats
 
+def get_instagram_stats(
+    artist_id: str,
+    date: str,
+    geo_only: bool = False,
+    access_token: str = None
+) -> dict:
+    """
+    Fetches Instagram audience stats for a given artist on a specific date.
+
+    Args:
+        artist_id:       Chartmetric artist ID (e.g. '236')
+        date:            ISO date string filter (YYYY-MM-DD)
+        geo_only:        If True, limits to geo data only (default False)
+        access_token:    Optional pre-fetched Bearer token; otherwise uses init_credentials()
+
+    Returns:
+        The raw `obj` dict from the `/instagram-audience-stats` endpoint, e.g.:
+        {
+          "top_countries": [...],
+          "top_cities": [...],
+          "followers": 39001,
+          ...
+        }
+    """
+    token = access_token or init_credentials()
+
+    # if the date var is not provided than the most recent date with data available os provided
+    headers = {'Authorization': f'Bearer {token}'}
+    params = {
+        #'date':    date,
+        'geoOnly': str(geo_only).lower()
+    }
+
+    resp = requests.get(
+        f"{base_url}/artist/{artist_id}/instagram-audience-stats",
+        headers=headers,
+        params=params
+    )
+    resp.raise_for_status()
+    raw = resp.json().get('obj', {})
+
+    # keys we want, with defaults
+    keys_to_keep = {
+      "followers": None,
+      "avg_likes_per_post": None,
+      "avg_commments_per_post": None,
+      "engagement_rate": None,
+      "top_countries":   [],    # list of dicts (arr)
+      "top_cities":      [],    # list of dicts (arr)
+      "likers_top_countries": [],
+      "likers_top_cities":    [],
+      "timestp":       None
+    }
+
+    filtered = {}
+    for key, default in keys_to_keep.items():
+        filtered[key] = raw.get(key, default)
+
+    return filtered
+
+
 # ---- TESTING ----
 if __name__ == '__main__':
-    # 1️⃣ Search and grab the first artist ID
-    results = search_artist('Sofinari', limit=5, type='artists')
+    # grab the first artist ID
+    query = 'Rich Kidd'
+    results = search_artist(query, limit=5, type='artists')
     if not results:
-        print("No artists found for 'Erin B'")
+        print(f"No artists found for {query}")
         exit(1)
     artist = results[0]
     artist_id = artist.get('id')
     print(f"Using artist_id={artist_id} for {artist.get('name')}")
 
-    # 2️⃣ Call get_artist_insights (no date param needed)
+    # get_artist_insights (no date param needed)
     albums_stats = get_artist_insights(artist_id)
     print(f"Fetched cm_statistics for {len(albums_stats)} albums:\n")
 
-    # 3️⃣ Print the full cm_statistics data for each album
+    # full cm_statistics data for each album
     from pprint import pprint
     for alb in albums_stats:
-        print(f"Album ID: {alb['album_id']}")
         print(f"Album ID: {alb['album_id']}  Name: {alb.get('album_name')}")
         print("cm_statistics:")
         pprint(alb['cm_statistics'], indent=2, width=100)
         print("\n" + "-"*80 + "\n")
+
+    # instagram data pull for the artist
+    test_date = '2025-04-26'  # or any YYYY-MM-DD
+    print("Testing get_instagram_stats()...\n")
+    ig_stats = get_instagram_stats(artist_id, test_date, geo_only=False)
+    print(ig_stats)
+
+
+

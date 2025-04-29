@@ -1,5 +1,6 @@
 """
 Scrapes SoundCloud artist's profile page for statistics.
+This script is not artist discovery-focused!
 
 @dogu - 2025-04-23
 EDIT: 'Think I am figuring this web scraping thing out.
@@ -208,8 +209,8 @@ def navigate_to_soundcloud_profile(query: str, artist_name: str) -> dict:
     
 # ------ TESTING ------ 
 if __name__ == "__main__":
-    test_query        = "d.o.g.u"   # soundcloud search q= 
-    expected_name     = "d.o.g.u"   # must exactly match the display_name on SC
+    test_query        = "Angelique Dancel"   # soundcloud search q= 
+    expected_name     = "Angelique Dancel"   # must exactly match the display_name on SC
 
     result = navigate_to_soundcloud_profile(test_query, expected_name)
     if result:

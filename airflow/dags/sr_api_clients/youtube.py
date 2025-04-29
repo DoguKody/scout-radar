@@ -15,7 +15,7 @@ def get_youtube_service():
         if not YOUTUBE_API_KEY:
             raise ValueError("❌ Missing YOUTUBE_API_KEY environment variable.")
         youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-        return youtube
+        return youtube  
     except Exception as e:
         print(f"❌ Failed to initialize YouTube API client: {e}")
         return None
@@ -272,7 +272,7 @@ def get_channel_details(youtube, channel_id):
 
 # -----------TESTING-----------
 if __name__ == "__main__":
-    artist_name = "Rosabell"  
+    artist_name = "Lelo"  
     youtube_key = get_youtube_service()
     results_dict = search_artist_channel(youtube_key, artist_name)
     best_channel = select_best_channel(results_dict, artist_name)

@@ -10,52 +10,95 @@ from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 import time
 import json
+from airflow.utils.log.logging_mixin import LoggingMixin
+from playwright.sync_api import Page, TimeoutError as PlaywrightTimeoutError
 
-def load_soundcloud_search_results(query: str, page) -> str:
+logger = LoggingMixin().log
+
+def load_soundcloud_search_results(query: str, page: Page) -> str:
     """
-    Loads SoundCloud search results for a given query using an existing page instance.
+    Loads SoundCloud search results for a given query using an existing Playwright page.
+    Returns the page HTML, or empty string on failure.
     """
     search_url = f"https://soundcloud.com/search/people?q={query}"
-    page.goto(search_url, timeout=60000)
 
+    # navigate to SRP
     try:
-        page.wait_for_selector('button#onetrust-accept-btn-handler', timeout=5000)
+        page.goto(search_url, timeout=60_000)
+    except PlaywrightTimeoutError as e:
+        logger.error(f"[SoundCloud SRP] Timeout at {search_url}: {e}")
+        return ""
+    except Exception as e:
+        logger.error(f"[SoundCloud SRP] Error navigating to {search_url}: {e}")
+        return ""
+
+    # cookies if banner present
+    try:
+        page.wait_for_selector('button#onetrust-accept-btn-handler', timeout=5_000)
         page.click('button#onetrust-accept-btn-handler')
-        print("✅ Cookie acceptance button clicked.")
-    except:
-        print("⚠️ No cookie banner found or already accepted.")
+        logger.info("[SoundCloud SRP] Cookie banner accepted.")
+    except PlaywrightTimeoutError:
+        logger.debug("[SoundCloud SRP] No cookie banner to accept.")
+    except Exception as e:
+        logger.warning(f"[SoundCloud SRP] Error handling cookie banner: {e}")
 
-    return page.content()
+    # HTML
+    try:
+        return page.content()
+    except Exception as e:
+        logger.error(f"[SoundCloud SRP] Failed to retrieve page content: {e}")
+        return ""
     
-def parse_soundcloud_srp(html, artist_name):
+def parse_soundcloud_srp(html: str, artist_name: str) -> list:
     """
-    Parses a SoundCloud Search Results Page (SRP) and returns artist profile candidates.
+    Parses a SoundCloud Search Results Page (SRP) HTML and returns artist profile candidates.
 
-    Parameters:
-        html (str): HTML content of the SRP.
-        artist_name (str): Original artist name we are searching for.
+    Args:
+        html:         Raw HTML of the SRP.
+        artist_name:  Original artist name we are searching for (for logging context).
 
     Returns:
-        list of dict: Each dict contains 'display_name' and 'profile_url'.
+        List of dicts, each with:
+          - 'display_name': str
+          - 'profile_url':   str
     """
-    from bs4 import BeautifulSoup
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+    except Exception as e:
+        logger.error(f"[SoundCloud SRP] HTML parse failed for '{artist_name}': {e}")
+        return []
 
-    soup = BeautifulSoup(html, "html.parser")
     results = []
 
-    for link in soup.select('a.sc-link-dark.sc-link-primary'):
-        display_name = link.text.strip()
-        profile_url = link.get('href')
+    # candidate links
+    try:
+        links = soup.select('a.sc-link-dark.sc-link-primary')
+    except Exception as e:
+        logger.error(f"[SoundCloud SRP] Selector error for '{artist_name}': {e}")
+        return []
 
-        if not profile_url:
+    # extracting display_name and profile_url from each link
+    for link in links:
+        try:
+            display_name = link.text.strip()
+            profile_url = link.get('href') or ""
+            if not profile_url:
+                continue
+            if not profile_url.startswith("https://"):
+                profile_url = f"https://soundcloud.com{profile_url}"
+            results.append({
+                "display_name": display_name,
+                "profile_url": profile_url
+            })
+        except Exception as e:
+            logger.warning(f"[SoundCloud SRP] Skipping malformed entry for '{artist_name}': {e}")
             continue
-        if not profile_url.startswith("https://"):
-            profile_url = f"https://soundcloud.com{profile_url}"
 
-        results.append({
-            "display_name": display_name,
-            "profile_url": profile_url
-        })
+    # logging
+    if not results:
+        logger.warning(f"[SoundCloud SRP] No candidates parsed for '{artist_name}'")
+    else:
+        logger.info(f"[SoundCloud SRP] Parsed {len(results)} candidates for '{artist_name}'")
 
     return results
 
@@ -63,40 +106,86 @@ def parse_soundcloud_srp(html, artist_name):
 import time
 from playwright.sync_api import Page
 
-def auto_scroll_tracks(page: Page,
-                       item_selector: str = "a.sc-link-primary.soundTitle__title.sc-link-dark.sc-text-h4",
-                       pause_ms: int = 2000,
-                       max_cycles: int = 50) -> int:
+def auto_scroll_tracks(
+    page: Page,
+    item_selector: str = "a.sc-link-primary.soundTitle__title.sc-link-dark.sc-text-h4",
+    pause_ms: int = 2000,
+    max_cycles: int = 50
+) -> int:
     """
     Scrolls the SoundCloud /tracks page until no new tracks load.
 
-    Parameters:
-        page (Page): Playwright page at the artist’s /tracks URL.
-        item_selector (str): CSS selector for each track link element.
-        pause_ms (int): Milliseconds to wait after each scroll.
-        max_cycles (int): Safety cap on scroll iterations.
+    Args:
+        page: Playwright page at the artist’s /tracks URL.
+        item_selector: CSS selector for track link elements.
+        pause_ms: Milliseconds to wait after each scroll.
+        max_cycles: Safety cap on scroll iterations.
 
     Returns:
-        int: Total number of track items found on the page.
+        Total number of track items found on the page.
     """
-    # initial count
-    prev_count = -1
-    curr_count = len(page.query_selector_all(item_selector))
-    cycles = 0
+    try:
+        # initial count
+        try:
+            prev_count = -1
+            curr_count = len(page.query_selector_all(item_selector))
+        except Exception as e:
+            logger.error(f"[AutoScroll] Failed to get initial track count: {e}")
+            return 0
 
-    while curr_count != prev_count and cycles < max_cycles:
-        prev_count = curr_count
-        cycles += 1
+        cycles = 0
 
-        # scroll to bottom
-        page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        time.sleep(pause_ms / 1000)
+        # scroll loop
+        while curr_count != prev_count and cycles < max_cycles:
+            prev_count = curr_count
+            cycles += 1
 
-        curr_count = len(page.query_selector_all(item_selector))
+            # performing scroll
+            try:
+                page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            except PlaywrightTimeoutError as e:
+                logger.warning(f"[AutoScroll] Timeout during scroll #{cycles}: {e}")
+            except Exception as e:
+                logger.error(f"[AutoScroll] Error during scroll #{cycles}: {e}")
 
-    print(f"⏹️ Scrolled {cycles} times; loaded {curr_count} tracks total.")
-    return curr_count
+            # pausing for loading
+            try:
+                time.sleep(pause_ms / 1000)
+            except Exception as e:
+                logger.warning(f"[AutoScroll] Sleep interrupted at cycle #{cycles}: {e}")
 
+            # re-counting items
+            try:
+                curr_count = len(page.query_selector_all(item_selector))
+            except Exception as e:
+                logger.error(f"[AutoScroll] Failed to count items after scroll #{cycles}: {e}")
+                break
+
+        logger.info(f"[AutoScroll] Completed {cycles} scrolls; total tracks loaded: {curr_count}")
+        return curr_count
+
+    except Exception as e:
+        logger.error(f"[AutoScroll] Unexpected error: {e}")
+        return 0
+
+import functools # function to wrap around `navigate_to_soundcloud_profile` for debugging
+def safe_execute(default=None):
+    """
+    Decorator to wrap a function in try/except and log any uncaught errors.
+    Returns `default` on failure.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapped(*args, **kwargs):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"[{fn.__name__}] Unhandled exception: {e}", exc_info=True)
+                return default
+        return wrapped
+    return decorator
+
+@safe_execute(default=None)
 def navigate_to_soundcloud_profile(query: str, artist_name: str) -> dict:
     """
     Finds the exact SoundCloud profile for `artist_name` via a SRP search of `query`,
@@ -191,12 +280,12 @@ def navigate_to_soundcloud_profile(query: str, artist_name: str) -> dict:
         for idx, ts in enumerate(extraction["tracks"], start=1):
             total_plays    += ts["plays"]
             total_comments += ts["comments"]
-            print(f"🔍 Track #{idx}: “{ts['title']}” → "
-                  f"{ts['plays']} plays, {ts['comments']} comments "
-                  f"(cumulative: {total_plays} plays, {total_comments} comments)")
+            #print(f"🔍 Track #{idx}: “{ts['title']}” → "
+            #      f"{ts['plays']} plays, {ts['comments']} comments "
+            #      f"(cumulative: {total_plays} plays, {total_comments} comments)")
 
         # print follower count
-        print(f"👥 Followers: {extraction['followers']}")
+        #print(f"👥 Followers: {extraction['followers']}")
 
         browser.close()
         return {
@@ -209,8 +298,8 @@ def navigate_to_soundcloud_profile(query: str, artist_name: str) -> dict:
     
 # ------ TESTING ------ 
 if __name__ == "__main__":
-    test_query        = "Angelique Dancel"   # soundcloud search q= 
-    expected_name     = "Angelique Dancel"   # must exactly match the display_name on SC
+    test_query        = "insyt."   # soundcloud search q= 
+    expected_name     = "insyt."   # must exactly match the display_name on SC
 
     result = navigate_to_soundcloud_profile(test_query, expected_name)
     if result:

@@ -273,7 +273,7 @@ def get_instagram_stats(
 # ---- TESTING ----
 if __name__ == '__main__':
     # grab the first artist ID
-    query = 'J. Cole'
+    query = 'Daiela'
     results = search_artist(query, limit=5, type='artists')
     if not results:
         print(f"No artists found for {query}")

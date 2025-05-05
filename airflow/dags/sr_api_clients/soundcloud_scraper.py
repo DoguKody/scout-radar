@@ -168,7 +168,7 @@ def auto_scroll_tracks(
         logger.error(f"[AutoScroll] Unexpected error: {e}")
         return 0
 
-import functools # function to wrap around `navigate_to_soundcloud_profile` for debugging
+import functools # decorator to wrap around `navigate_to_soundcloud_profile` for debugging
 def safe_execute(default=None):
     """
     Decorator to wrap a function in try/except and log any uncaught errors.

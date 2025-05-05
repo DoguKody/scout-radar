@@ -8,3 +8,4 @@ airflow/airflow.db
 .gcp_keys/
 *.json
 .venv
+airflow.cfg

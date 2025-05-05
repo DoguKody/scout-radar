@@ -1,4 +1,4 @@
-#!/Users/dogukandalgic/Desktop/Data_Projects_@dogu/ScoutRadar/.venv/bin/python3
+#!/Users/dogukandalgic/Desktop/Data_Projects_@dogu/ScoutRadar/.venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
